@@ -1,0 +1,43 @@
+---
+- gather_facts: false
+  hosts: all
+  tasks:
+    - set_fact:
+        aaep_to_epgs: >-
+          {%- set map_list = [] -%}
+          {%- for i in access.policies.global.attachable_access_entity_profiles -%}
+            {%- for key,value in i.tenants.items() -%}
+              {%- for k,v in value.application_profiles.items() -%}
+                {% for e in v.application_epgs %}
+                  {%- set aep_map = {
+                    "aaep":i.name,
+                    "application_profile":k,
+                    "application_epg":e.name,
+                    "mode":e.mode,
+                    "tenant":key,
+                    "vlan_id":e.vlan_id
+                  } -%}
+                  {%- do map_list.append(aep_map) -%}
+                {%- endfor -%}
+              {%- endfor -%}
+            {%- endfor -%}
+          {%- endfor -%}
+          {{ map_list }}
+          {%- set map_list = [] -%}
+    - name: Map EPG's to AAEP's
+      collections:
+        - cisco.aci
+      loop: "{{ aaep_to_epgs }}"
+      cisco.aci.aci_aep_to_epg:
+      #aci_aep_to_epg:
+        # Host Settings
+        output_level: info
+        password: "{{ lookup('ansible.builtin.env', 'aci_password') }}"
+        validate_certs: false
+        # EPG to AAEP Settings
+        aep: "{{ item.aaep }}"
+        ap: "{{ item.application_profile }}"
+        epg: "{{ item.application_epg }}"
+        encap: "{{ item.vlan_id }}"
+        interface_mode: "{{ item.mode }}"
+        tenant: "{{ item.tenant }}"
